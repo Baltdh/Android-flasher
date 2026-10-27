@@ -101,7 +101,7 @@ class MainActivity : Activity() {
         content.addView(imageInfo, matchWrap())
         expectedHashInput = EditText(this).apply {
             hint = "SHA-256 oficial (opcional)"
-            singleLine = true
+            setSingleLine(true)
             textSize = 14f
             setTextColor(0xFFFFFFFF.toInt())
             setHintTextColor(0xFFADB7C7.toInt())
@@ -286,6 +286,7 @@ class MainActivity : Activity() {
                             "VERIFICADO: o SHA-256 corresponde exatamente ao valor informado."
                         else ->
                             "ATENÇÃO: o SHA-256 NÃO corresponde ao valor informado. Não use esta imagem até confirmar a origem."
+                    }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
