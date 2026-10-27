@@ -12,6 +12,16 @@ Target phone: Motorola Moto G52 XT2221-1, stock Android 13, no root. Device code
 - The Moto G52 (rhode) has community TWRP builds. The TeamWin device tree documents Android 12 firmware, working microSD support, ADB and flashing. Community release notes include Android 12/13 builds. This is evidence of a possible recovery route, not a guarantee for every XT2221-1 firmware/build.
 - Motorola bootloader unlock eligibility is device/account/region dependent. The unlock process normally factory-resets the phone. Do not unlock until the owner has read the current Motorola requirements, backed up all data and explicitly agreed.
 - A custom recovery is privileged software. A wrong recovery image or wrong block-device target can make the phone unbootable or destroy the SD card contents.
+- The Android 13 security model and verified boot prevent a normal app or local server from gaining raw block-device privileges merely by using mobile data, ADB, or HTTP. A network transport does not change the process's kernel permissions.
+
+## Work added
+
+A read-only inventory script has been added at tools/recovery_sd_inventory.sh.
+
+- Reads /sys/block, device metadata, partition entries, /proc/partitions, relevant mount records and block-node aliases.
+- Does not call su, dd, mount, umount, fastboot, or any write operation.
+- Does not automatically choose a target. It deliberately reports metadata for manual correlation because device numbering and the removable flag alone are not safe identification methods.
+- Local shell syntax validation passed with sh -n, and a run in a Linux container completed. This is **not** a test on the Moto G52 or in its recovery environment; Android/recovery access and output still need to be checked on the actual phone.
 
 ## Proposed route: two-stage, recovery-assisted writer
 
@@ -24,8 +34,8 @@ Target phone: Motorola Moto G52 XT2221-1, stock Android 13, no root. Device code
 
 2. **Recovery inventory stage (read-only):**
    - Boot a verified, exact-device-compatible recovery.
-   - Enumerate block devices and sysfs metadata: model, removable flag, size in bytes, device path, partition children, filesystem labels and current mounts.
-   - Identify the microSD only when multiple independent signals agree. mmcblk* alone and removable=1 alone are not sufficient.
+   - Run the inventory script and correlate block-device sysfs ancestry, capacity, card metadata, partition children and current mounts.
+   - Identify the microSD only when multiple independent signals agree. mmcblk numbering alone and removable=1 alone are not sufficient.
    - Refuse to proceed if the candidate is ambiguous, the expected capacity does not match, the source image is on the target card, or the target contains mounted partitions that cannot be safely unmounted.
    - Show the selected whole-disk device and capacity to the user before enabling any writer.
 
