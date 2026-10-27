@@ -25,6 +25,7 @@ import android.widget.TextView
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
@@ -151,6 +152,9 @@ class MainActivity : Activity() {
                 openUrl("https://pt-br.support.motorola.com/app/answers/detail/a_id/89960/")
             }
         }, matchWrap())
+        content.addView(makeButton("Diagnosticar acesso ao microSD interno (sem gravar)").apply {
+            setOnClickListener { diagnoseInternalSdAccess() }
+        }, matchWrap())
         content.addView(TextView(this).apply {
             text = "Importante: o Pocket Flasher não consegue ativar root automaticamente. " +
                 "Ativar opções do desenvolvedor ou depuração USB não libera a escrita física no microSD. " +
@@ -194,6 +198,49 @@ class MainActivity : Activity() {
             setPadding(0, dp(16), 0, 0)
         })
         setContentView(page)
+    }
+
+    /**
+     * Diagnóstico somente de leitura. Nunca escreve nem altera partições.
+     * O acesso ao comando "su" depende de root já instalado e autorizado pelo usuário.
+     */
+    private fun diagnoseInternalSdAccess() {
+        status.text = "Verificando acesso privilegiado ao slot interno. Nenhum dado será gravado…"
+        worker.execute {
+            var process: Process? = null
+            val result = try {
+                process = ProcessBuilder(
+                    "su", "-c",
+                    "id; echo __BLOCK_DEVICES__; ls -l /dev/block/mmcblk* /dev/block/by-name 2>/dev/null"
+                ).redirectErrorStream(true).start()
+                val finished = process.waitFor(12, TimeUnit.SECONDS)
+                if (!finished) {
+                    process.destroyForcibly()
+                    "Tempo esgotado aguardando o comando su/root. Nenhuma gravação foi tentada."
+                } else {
+                    val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                    when {
+                        process.exitValue() != 0 ->
+                            "O comando de diagnóstico terminou com código " + process.exitValue() +
+                                ". Saída: " + output.ifBlank { "(vazia)" } +
+                                "\nNenhuma gravação foi tentada."
+                        !output.contains("uid=0") ->
+                            "O comando su respondeu, mas não confirmou uid=0. Acesso root não confirmado.\n" +
+                                output + "\nNenhuma gravação foi tentada."
+                        else ->
+                            "Acesso privilegiado confirmado. Esta etapa apenas lista possíveis dispositivos; " +
+                                "ainda NÃO identifica com segurança qual é o microSD e NÃO grava nada.\n\n" + output
+                    }
+                }
+            } catch (error: Exception) {
+                "Não foi possível executar su/root: " + (error.message ?: error.javaClass.simpleName) +
+                    "\nO aparelho provavelmente não tem root funcional ou o gerenciador de root negou o acesso. " +
+                    "Opções do desenvolvedor/depuração USB não substituem root. Nenhuma gravação foi tentada."
+            } finally {
+                try { process?.destroy() } catch (_: Exception) { }
+            }
+            runOnUiThread { status.text = result }
+        }
     }
 
     private fun showDeveloperOptionsGuide() {
