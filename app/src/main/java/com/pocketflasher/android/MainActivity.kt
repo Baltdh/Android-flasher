@@ -201,16 +201,8 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Diagnóstico somente de leitura. Nunca escreve nem altera partições.
-     * O acesso ao comando "su" depende de root já instalado e autorizado pelo usuário.
-     */
-    /**
-     * Read-only diagnosis of root and MMC block-device metadata.
-     * This method intentionally never opens a block device for writing.
-     */
-    /**
-     * Read-only diagnosis of root and MMC block-device metadata.
-     * This method intentionally never opens a block device for writing.
+     * Diagnóstico somente de leitura dos metadados MMC e do acesso root.
+     * Este método nunca abre um dispositivo de bloco para escrita.
      */
     private fun diagnoseInternalSdAccess() {
         status.text = "Verificando root e identificadores do microSD. Diagnóstico somente de leitura…"
@@ -222,14 +214,14 @@ class MainActivity : Activity() {
                     id
                     echo __SYS_BLOCK_MMC__
                     for p in /sys/block/mmcblk*; do
-                      [ -e "\${dollar}p" ] || continue
-                      n=\${dollar}{p##*/}
-                      echo "DEVICE=\${dollar}n"
-                      echo -n "REMOVABLE="; cat "\${dollar}p/removable" 2>/dev/null
-                      echo -n "SECTORS_512B="; cat "\${dollar}p/size" 2>/dev/null
-                      echo -n "SYSFS_PATH="; readlink -f "\${dollar}p/device" 2>/dev/null
+                      [ -e "${dollar}p" ] || continue
+                      n=${dollar}{p##*/}
+                      echo "DEVICE=${dollar}n"
+                      echo -n "REMOVABLE="; cat "${dollar}p/removable" 2>/dev/null
+                      echo -n "SECTORS_512B="; cat "${dollar}p/size" 2>/dev/null
+                      echo -n "SYSFS_PATH="; readlink -f "${dollar}p/device" 2>/dev/null
                       echo -n "PARTITIONS="
-                      ls "\${dollar}p" 2>/dev/null | grep -E "^\${dollar}{n}p?[0-9]+\${dollar}" | tr '\\n' ' '
+                      ls "${dollar}p" 2>/dev/null | grep -E "^${dollar}{n}p?[0-9]+${dollar}" | tr '\\n' ' '
                       echo
                     done
                     echo __BLOCK_NODES__
