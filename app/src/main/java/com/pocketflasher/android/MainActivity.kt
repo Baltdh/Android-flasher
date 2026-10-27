@@ -154,6 +154,13 @@ class MainActivity : Activity() {
             setBackgroundColor(0xFF1B2230.toInt())
         }
         content.addView(status, matchWrap())
+        expectedHashInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                status.text = "Hash oficial alterado. Recalcule o SHA-256 para comparar com o novo valor."
+            }
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
         content.addView(TextView(this).apply {
             text = "Aviso: gravar uma imagem no dispositivo errado pode apagar todos os dados. " +
                 "Antes de habilitar a gravação, o app deverá confirmar capacidade, destino e checksum."
