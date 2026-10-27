@@ -2,7 +2,11 @@ package com.pocketflasher.android
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbManager
 import android.net.Uri
@@ -27,6 +31,7 @@ class MainActivity : Activity() {
     private var imageName = ""
     private var imageSize = -1L
     private var imageSelectionVersion = 0
+    private var pendingUsbReceiver: BroadcastReceiver? = null
     private lateinit var status: TextView
     private lateinit var imageInfo: TextView
     private lateinit var expectedHashInput: EditText
@@ -127,6 +132,9 @@ class MainActivity : Activity() {
         content.addView(connectionSpinner, matchWrap())
         content.addView(makeButton("Verificar dispositivos USB conectados").apply {
             setOnClickListener { inspectUsbDevices() }
+        }, matchWrap())
+        content.addView(makeButton("Solicitar autorização USB para o leitor").apply {
+            setOnClickListener { requestUsbPermission() }
         }, matchWrap())
 
         section(content, "4 · Cartão SD / USB")
@@ -310,6 +318,66 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun requestUsbPermission() {
+        val manager = getSystemService(USB_SERVICE) as UsbManager
+        val devices = manager.deviceList.values.toList()
+        if (devices.isEmpty()) {
+            status.text = "Nenhum USB encontrado. Conecte o leitor por OTG e tente novamente."
+            return
+        }
+
+        val target = devices.firstOrNull { device ->
+            (0 until device.interfaceCount).any { index ->
+                device.getInterface(index).interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE
+            }
+        } ?: devices.first()
+
+        if (manager.hasPermission(target)) {
+            status.text = "O Android já autorizou o acesso USB ao dispositivo " + target.deviceName +
+                ". A escrita raw ainda não está implementada."
+            return
+        }
+
+        pendingUsbReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: IllegalArgumentException) { }
+            pendingUsbReceiver = null
+        }
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != ACTION_USB_PERMISSION) return
+                try { unregisterReceiver(this) } catch (_: IllegalArgumentException) { }
+                if (pendingUsbReceiver === this) pendingUsbReceiver = null
+
+                val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                val device = intent.getParcelableExtra<android.hardware.usb.UsbDevice>(UsbManager.EXTRA_DEVICE)
+                status.text = if (granted) {
+                    "Autorização USB concedida para " + (device?.deviceName ?: target.deviceName) +
+                        ". Isso permite comunicação USB autorizada, mas a gravação raw ainda não está implementada."
+                } else {
+                    "Autorização USB negada. Nenhuma gravação foi realizada."
+                }
+            }
+        }
+        pendingUsbReceiver = receiver
+        val filter = IntentFilter(ACTION_USB_PERMISSION)
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(receiver, filter)
+        }
+
+        val permissionIntent = PendingIntent.getBroadcast(
+            this,
+            target.deviceId,
+            Intent(ACTION_USB_PERMISSION).setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        manager.requestPermission(target, permissionIntent)
+        status.text = "Aguardando a confirmação de permissão USB do Android…"
+    }
+
     private fun inspectUsbDevices() {
         val manager = getSystemService(USB_SERVICE) as UsbManager
         val connected = manager.deviceList.values.toList()
@@ -342,6 +410,10 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        pendingUsbReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: IllegalArgumentException) { }
+            pendingUsbReceiver = null
+        }
         worker.shutdown()
         super.onDestroy()
     }
@@ -349,5 +421,6 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_IMAGE = 1001
         private const val REQ_TREE = 1002
+        private const val ACTION_USB_PERMISSION = "com.pocketflasher.android.USB_PERMISSION"
     }
 }
