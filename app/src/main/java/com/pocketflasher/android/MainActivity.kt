@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -26,6 +27,7 @@ class MainActivity : Activity() {
     private var imageSize = -1L
     private lateinit var status: TextView
     private lateinit var imageInfo: TextView
+    private lateinit var expectedHashInput: EditText
     private lateinit var deviceSpinner: Spinner
 
     private val profiles = listOf(
@@ -97,7 +99,19 @@ class MainActivity : Activity() {
             setBackgroundColor(0xFF1B2230.toInt())
         }
         content.addView(imageInfo, matchWrap())
-        content.addView(makeButton("Calcular SHA-256 da imagem").apply {
+        expectedHashInput = EditText(this).apply {
+            hint = "SHA-256 oficial (opcional)"
+            singleLine = true
+            textSize = 14f
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFFADB7C7.toInt())
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setBackgroundColor(0xFF1B2230.toInt())
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        content.addView(expectedHashInput, matchWrap())
+        content.addView(makeButton("Calcular SHA-256 e comparar").apply {
             setOnClickListener { calculateSha256() }
         }, matchWrap())
 
@@ -261,7 +275,17 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     imageInfo.text = "Arquivo: " + imageName + "\nTamanho: " + formatSize(imageSize) +
                         "\nSHA-256: " + result
-                    status.text = "SHA-256 calculado. Compare com o valor publicado pelo fornecedor da imagem."
+                    val expected = expectedHashInput.text.toString()
+                        .trim().replace(" ", "").lowercase(Locale.ROOT)
+                    status.text = when {
+                        expected.isEmpty() ->
+                            "SHA-256 calculado. Se tiver o hash oficial, informe-o para comparar."
+                        !expected.matches(Regex("[0-9a-f]{64}")) ->
+                            "Hash calculado, mas o valor informado não tem formato SHA-256 válido (64 caracteres hexadecimais)."
+                        expected == result.lowercase(Locale.ROOT) ->
+                            "VERIFICADO: o SHA-256 corresponde exatamente ao valor informado."
+                        else ->
+                            "ATENÇÃO: o SHA-256 NÃO corresponde ao valor informado. Não use esta imagem até confirmar a origem."
                 }
             } catch (error: Exception) {
                 runOnUiThread {
