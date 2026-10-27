@@ -312,7 +312,7 @@ class MainActivity : Activity() {
                 " · Produto ID: " + device.productId + "\nClasse do dispositivo: " + device.deviceClass +
                 " · Interfaces: " + device.interfaceCount +
                 "\nInterfaces Mass Storage: " + storageInterfaces +
-                if (storageInterfaces > 0) " (compatível com armazenamento USB)" else " (armazenamento não identificado)" +
+                (if (storageInterfaces > 0) " (compatível com armazenamento USB)" else " (armazenamento não identificado)") +
                 "\nAcesso autorizado pelo Android: " + manager.hasPermission(device)
         }
         AlertDialog.Builder(this)
