@@ -3,6 +3,7 @@ package com.pocketflasher.android
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Bundle
@@ -271,7 +272,7 @@ class MainActivity : Activity() {
                         digest.update(buffer, 0, count)
                     }
                 }
-                val result = digest.digest().joinToString("") { "%02x".format(it) }
+                val result = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
                 runOnUiThread {
                     imageInfo.text = "Arquivo: " + imageName + "\nTamanho: " + formatSize(imageSize) +
                         "\nSHA-256: " + result
@@ -304,9 +305,15 @@ class MainActivity : Activity() {
             return
         }
         val details = connected.joinToString("\n\n") { device ->
+            val storageInterfaces = (0 until device.interfaceCount).count { index ->
+                device.getInterface(index).interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE
+            }
             "Nome: " + device.deviceName + "\nFabricante ID: " + device.vendorId +
-                " · Produto ID: " + device.productId + "\nClasse: " + device.deviceClass +
-                " · Interfaces: " + device.interfaceCount + "\nAcesso autorizado: " + manager.hasPermission(device)
+                " · Produto ID: " + device.productId + "\nClasse do dispositivo: " + device.deviceClass +
+                " · Interfaces: " + device.interfaceCount +
+                "\nInterfaces Mass Storage: " + storageInterfaces +
+                if (storageInterfaces > 0) " (compatível com armazenamento USB)" else " (armazenamento não identificado)" +
+                "\nAcesso autorizado pelo Android: " + manager.hasPermission(device)
         }
         AlertDialog.Builder(this)
             .setTitle("Dispositivos USB detectados")
