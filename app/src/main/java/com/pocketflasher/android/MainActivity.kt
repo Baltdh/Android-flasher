@@ -26,6 +26,7 @@ class MainActivity : Activity() {
     private var imageUri: Uri? = null
     private var imageName = ""
     private var imageSize = -1L
+    private var imageSelectionVersion = 0
     private lateinit var status: TextView
     private lateinit var imageInfo: TextView
     private lateinit var expectedHashInput: EditText
@@ -214,6 +215,7 @@ class MainActivity : Activity() {
         if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         if (requestCode == REQ_IMAGE) {
+            imageSelectionVersion++
             imageUri = uri
             try {
                 val readFlag = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -266,6 +268,9 @@ class MainActivity : Activity() {
             status.text = "Selecione uma imagem primeiro."
             return
         }
+        val selectionVersion = imageSelectionVersion
+        val selectedName = imageName
+        val selectedSize = imageSize
         status.text = "Calculando SHA-256… arquivos grandes podem levar algum tempo."
         worker.execute {
             try {
@@ -281,7 +286,8 @@ class MainActivity : Activity() {
                 }
                 val result = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
                 runOnUiThread {
-                    imageInfo.text = "Arquivo: " + imageName + "\nTamanho: " + formatSize(imageSize) +
+                    if (selectionVersion != imageSelectionVersion) return@runOnUiThread
+                    imageInfo.text = "Arquivo: " + selectedName + "\nTamanho: " + formatSize(selectedSize) +
                         "\nSHA-256: " + result
                     val expected = expectedHashInput.text.toString()
                     status.text = when {
@@ -297,6 +303,7 @@ class MainActivity : Activity() {
                 }
             } catch (error: Exception) {
                 runOnUiThread {
+                    if (selectionVersion != imageSelectionVersion) return@runOnUiThread
                     status.text = "Falha ao calcular SHA-256: " + (error.message ?: "erro desconhecido")
                 }
             }
