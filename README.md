@@ -38,3 +38,7 @@ Para compilar localmente, use Android Studio, JDK 17, Android SDK Platform 35 e 
 4. Extraia o ZIP do artefato e instale app-debug.apk no Android.
 
 APK de depuração é para testes; ainda não é uma versão de produção assinada.
+
+## Pesquisa: sem root e sem computador
+
+A análise de viabilidade para o Moto G52 Android 13 está em [docs/NO_ROOT_NO_PC_FEASIBILITY.md](docs/NO_ROOT_NO_PC_FEASIBILITY.md). O documento separa cópia de arquivos por SAF de gravação raw, avalia alternativas e define experimentos não destrutivos. Até existir uma interface suportada para escrita em setores, o aplicativo não deve anunciar gravação inicializável pelo slot interno.
