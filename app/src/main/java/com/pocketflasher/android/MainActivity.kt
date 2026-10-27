@@ -12,6 +12,7 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.provider.DocumentsContract
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -31,6 +32,7 @@ class MainActivity : Activity() {
     private var imageName = ""
     private var imageSize = -1L
     private var imageSelectionVersion = 0
+    private var destinationTreeUri: Uri? = null
     private var pendingUsbReceiver: BroadcastReceiver? = null
     private lateinit var status: TextView
     private lateinit var imageInfo: TextView
@@ -141,22 +143,13 @@ class MainActivity : Activity() {
         content.addView(makeButton("Selecionar pasta/cartão (acesso Android)").apply {
             setOnClickListener { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_TREE) }
         }, matchWrap())
-        content.addView(makeButton("Gravar imagem inicializável").apply {
-            setOnClickListener {
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Gravação raw ainda não habilitada")
-                    .setMessage(
-                        "Esta versão seleciona imagens, calcula SHA-256 e pesquisa informações de tela. " +
-                        "Ela ainda NÃO grava setores de inicialização do cartão. O seletor de pastas do Android " +
-                        "não fornece, por si só, acesso bruto ao dispositivo. Não use esta versão como gravador Rufus."
-                    )
-                    .setPositiveButton("Entendi", null).show()
-            }
+        content.addView(makeButton("Copiar imagem para o microSD (não inicializável)").apply {
+            setOnClickListener { confirmCopyToSdCard() }
         }, matchWrap())
 
         section(content, "Estado")
         status = TextView(this).apply {
-            text = "Pronto. A gravação raw requer um backend específico para o método de conexão do cartão."
+            text = "Selecione uma imagem e uma pasta do microSD. A cópia de arquivo não torna o cartão inicializável."
             textSize = 13f
             setTextColor(0xFFFFC857.toInt())
             setPadding(dp(12), dp(12), dp(12), dp(12))
@@ -171,8 +164,8 @@ class MainActivity : Activity() {
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
         content.addView(TextView(this).apply {
-            text = "Aviso: gravar uma imagem no dispositivo errado pode apagar todos os dados. " +
-                "Antes de habilitar a gravação, o app deverá confirmar capacidade, destino e checksum."
+            text = "Limitação do Android: pelo slot interno, APIs públicas comuns não permitem escrever setores físicos do microSD. " +
+                "A função disponível copia a imagem como arquivo e NÃO cria um cartão inicializável."
             textSize = 12f
             setTextColor(0xFFADB7C7.toInt())
             setPadding(0, dp(16), 0, 0)
@@ -239,8 +232,123 @@ class MainActivity : Activity() {
                 "\nSHA-256: ainda não calculado"
             status.text = "Imagem selecionada. Confira a compatibilidade com o dispositivo escolhido."
         } else if (requestCode == REQ_TREE) {
-            status.text = "Pasta selecionada: " + uri +
-                ". Isso não significa acesso raw ao cartão nem que ele será inicializável."
+            val flags = data.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            try {
+                if (flags != 0) contentResolver.takePersistableUriPermission(uri, flags)
+            } catch (_: SecurityException) {
+                // Alguns provedores não permitem persistir a permissão.
+            } catch (_: IllegalArgumentException) {
+                // O provedor não permite persistir este URI.
+            }
+            destinationTreeUri = uri
+            status.text = "Destino selecionado. Confirme que esta pasta pertence ao microSD: " +
+                "a próxima operação copiará a imagem como arquivo, sem gravar setores de inicialização."
+        }
+    }
+
+    private fun confirmCopyToSdCard() {
+        val source = imageUri
+        val tree = destinationTreeUri
+        if (source == null) {
+            status.text = "Selecione primeiro a imagem ISO/IMG."
+            return
+        }
+        if (tree == null) {
+            status.text = "Selecione primeiro a pasta do microSD usando o botão de acesso Android."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Copiar imagem como arquivo?")
+            .setMessage(
+                "Destino: pasta selecionada no Android. O arquivo será copiado para o microSD, " +
+                "mas isso NÃO grava setores de inicialização e NÃO torna o cartão inicializável. " +
+                "Confirme que a pasta selecionada está no microSD e que há espaço suficiente."
+            )
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Copiar arquivo") { _, _ -> copyImageToSelectedFolder(source, tree) }
+            .show()
+    }
+
+    private fun copyImageToSelectedFolder(source: Uri, tree: Uri) {
+        val selectionVersion = imageSelectionVersion
+        val sourceName = imageName.ifBlank { "imagem.img" }
+        status.text = "Preparando cópia para o microSD…"
+        worker.execute {
+            var destination: Uri? = null
+            try {
+                val parent = DocumentsContract.buildDocumentUriUsingTree(
+                    tree, DocumentsContract.getTreeDocumentId(tree)
+                )
+                val mime = contentResolver.getType(source) ?: "application/octet-stream"
+                destination = DocumentsContract.createDocument(contentResolver, parent, mime, sourceName)
+                    ?: error("O provedor Android não conseguiu criar o arquivo de destino.")
+                val sourceDigest = MessageDigest.getInstance("SHA-256")
+                var copied = 0L
+                val input = contentResolver.openInputStream(source)
+                    ?: error("Não foi possível abrir a imagem de origem.")
+                val output = contentResolver.openOutputStream(destination, "w")
+                    ?: error("Não foi possível abrir o arquivo de destino para escrita.")
+                input.use { inStream ->
+                    output.use { outStream ->
+                        val buffer = ByteArray(1024 * 1024)
+                        while (true) {
+                            val count = inStream.read(buffer)
+                            if (count < 0) break
+                            outStream.write(buffer, 0, count)
+                            sourceDigest.update(buffer, 0, count)
+                            copied += count
+                            if (copied % (16L * 1024 * 1024) < count) {
+                                val progress = copied
+                                runOnUiThread {
+                                    if (selectionVersion == imageSelectionVersion) {
+                                        status.text = "Copiando: " + formatSize(progress) + " transferidos…"
+                                    }
+                                }
+                            }
+                        }
+                        outStream.flush()
+                    }
+                }
+                val expectedDigest = sourceDigest.digest()
+                val verifyDigest = MessageDigest.getInstance("SHA-256")
+                val verifyInput = contentResolver.openInputStream(destination)
+                    ?: error("Arquivo copiado, mas o Android não permitiu reabri-lo para verificação.")
+                var verifiedBytes = 0L
+                verifyInput.use { stream ->
+                    val buffer = ByteArray(1024 * 1024)
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count < 0) break
+                        verifyDigest.update(buffer, 0, count)
+                        verifiedBytes += count
+                    }
+                }
+                if (verifiedBytes != copied || !expectedDigest.contentEquals(verifyDigest.digest())) {
+                    error("A verificação após a cópia falhou: tamanho ou SHA-256 diferente.")
+                }
+                runOnUiThread {
+                    if (selectionVersion != imageSelectionVersion) return@runOnUiThread
+                    status.text = "Cópia concluída e SHA-256 verificado: " + formatSize(copied) +
+                        ". Atenção: o arquivo está no microSD, mas o cartão NÃO foi gravado como inicializável."
+                    AlertDialog.Builder(this)
+                        .setTitle("Cópia verificada")
+                        .setMessage(
+                            "Arquivo: " + sourceName + "\nTamanho copiado: " + formatSize(copied) +
+                            "\nSHA-256 de origem e destino: iguais.\n\n" +
+                            "Isto é somente uma cópia de arquivo. Não é uma gravação raw e não torna o microSD inicializável."
+                        )
+                        .setPositiveButton("OK", null).show()
+                }
+            } catch (error: Exception) {
+                destination?.let {
+                    try { DocumentsContract.deleteDocument(contentResolver, it) } catch (_: Exception) { }
+                }
+                runOnUiThread {
+                    if (selectionVersion != imageSelectionVersion) return@runOnUiThread
+                    status.text = "Falha na cópia/verificação: " + (error.message ?: "erro desconhecido") +
+                        ". Se houver arquivo parcial, confira a pasta do microSD."
+                }
+            }
         }
     }
 
