@@ -11,6 +11,8 @@ import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import android.os.storage.StorageManager
 import android.provider.OpenableColumns
 import android.provider.DocumentsContract
 import android.view.Gravity
@@ -152,7 +154,10 @@ class MainActivity : Activity() {
                 openUrl("https://pt-br.support.motorola.com/app/answers/detail/a_id/89960/")
             }
         }, matchWrap())
-        content.addView(makeButton("Diagnosticar acesso ao microSD interno (sem gravar)").apply {
+        content.addView(makeButton("Inventariar volumes visíveis ao Android (sem root)").apply {
+            setOnClickListener { diagnoseAndroidVolumes() }
+        }, matchWrap())
+        content.addView(makeButton("Diagnóstico MMC avançado (requer root)").apply {
             setOnClickListener { diagnoseInternalSdAccess() }
         }, matchWrap())
         content.addView(TextView(this).apply {
@@ -198,6 +203,48 @@ class MainActivity : Activity() {
             setPadding(0, dp(16), 0, 0)
         })
         setContentView(page)
+    }
+
+    /**
+     * Inventário não destrutivo usando apenas APIs públicas do Android.
+     * Isso identifica volumes lógicos expostos ao app; não concede acesso raw ao dispositivo de bloco.
+     */
+    private fun diagnoseAndroidVolumes() {
+        status.text = "Consultando volumes expostos pelo Android. Nenhuma gravação ou acesso root será tentado…"
+        worker.execute {
+            val result = try {
+                val manager = getSystemService(StorageManager::class.java)
+                val volumes = manager.storageVolumes
+                val report = StringBuilder()
+                report.appendLine("POCKET FLASHER — INVENTÁRIO ANDROID")
+                report.appendLine("API=" + Build.VERSION.SDK_INT)
+                report.appendLine("Volumes retornados=" + volumes.size)
+                report.appendLine("Modo=APIs públicas; sem root; sem escrita")
+                volumes.forEachIndexed { index, volume ->
+                    report.appendLine()
+                    report.appendLine("VOLUME_" + (index + 1))
+                    report.appendLine("DESCRIÇÃO=" + volume.getDescription(this))
+                    report.appendLine("REMOVÍVEL=" + volume.isRemovable)
+                    report.appendLine("PRIMÁRIO=" + volume.isPrimary)
+                    report.appendLine("UUID=" + (volume.uuid ?: "(não exposto)"))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        report.appendLine("DIRETÓRIO=" + (volume.directory?.absolutePath ?: "(não exposto)"))
+                    } else {
+                        report.appendLine("DIRETÓRIO=não disponível nesta API pública")
+                    }
+                    report.appendLine("ESTADO=" + volume.state)
+                }
+                report.appendLine()
+                report.appendLine("LIMITAÇÃO: este relatório mostra volumes lógicos que o Android expõe.")
+                report.appendLine("Ele NÃO identifica com segurança /dev/block, não prova acesso raw e não grava setores.")
+                report.toString()
+            } catch (error: Exception) {
+                "Falha ao consultar volumes Android: " +
+                    (error.message ?: error.javaClass.simpleName) +
+                    "\nNenhuma gravação, comando shell ou acesso root foi tentado."
+            }
+            runOnUiThread { status.text = result }
+        }
     }
 
     /**
