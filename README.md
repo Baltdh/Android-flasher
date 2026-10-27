@@ -25,7 +25,7 @@ Não habilitar escrita destrutiva antes de testar com cartões descartáveis, va
 
 ## Compilação
 
-A branch work/pocket-flasher-ci configura GitHub Actions. Ao enviar alterações para essa branch, abrir um pull request ou executar manualmente o workflow, o GitHub tenta compilar o app e publica pocket-flasher-debug-apk como artefato da execução.
+O workflow GitHub Actions em `.github/workflows/android-build.yml` é executado quando há alterações na branch `main` e também conforme os gatilhos definidos no próprio arquivo. Ele compila o APK de depuração e publica `pocket-flasher-debug-apk` como artefato da execução.
 
 Para compilar localmente, use Android Studio, JDK 17, Android SDK Platform 35 e Gradle 8.9. O projeto usa Android Gradle Plugin 8.7.3 e Kotlin 2.0.21.
 
