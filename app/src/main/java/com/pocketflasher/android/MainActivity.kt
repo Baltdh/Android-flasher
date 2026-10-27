@@ -139,6 +139,29 @@ class MainActivity : Activity() {
             setOnClickListener { requestUsbPermission() }
         }, matchWrap())
 
+        section(content, "4 · Desenvolvedor / root (Moto G52)")
+        content.addView(makeButton("Como habilitar opções do desenvolvedor").apply {
+            setOnClickListener { showDeveloperOptionsGuide() }
+        }, matchWrap())
+        content.addView(makeButton("Abrir opções do desenvolvedor").apply {
+            setOnClickListener { openDeveloperSettings() }
+        }, matchWrap())
+        content.addView(makeButton("Informações oficiais sobre desbloqueio do bootloader").apply {
+            setOnClickListener {
+                openUrl("https://pt-br.support.motorola.com/app/answers/detail/a_id/89960/")
+            }
+        }, matchWrap())
+        content.addView(TextView(this).apply {
+            text = "Importante: o Pocket Flasher não consegue ativar root automaticamente. " +
+                "Ativar opções do desenvolvedor ou depuração USB não libera a escrita física no microSD. " +
+                "Desbloquear o bootloader pode apagar os dados e reduzir a segurança; confirme a elegibilidade " +
+                "do modelo e siga somente instruções oficiais. A gravação raw ainda não está implementada."
+            textSize = 12f
+            setTextColor(0xFFFFC857.toInt())
+            setPadding(dp(12), dp(10), dp(12), dp(12))
+            setBackgroundColor(0xFF1B2230.toInt())
+        }, matchWrap())
+
         section(content, "4 · Cartão SD / USB")
         content.addView(makeButton("Selecionar pasta/cartão (acesso Android)").apply {
             setOnClickListener { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_TREE) }
@@ -171,6 +194,42 @@ class MainActivity : Activity() {
             setPadding(0, dp(16), 0, 0)
         })
         setContentView(page)
+    }
+
+    private fun showDeveloperOptionsGuide() {
+        AlertDialog.Builder(this)
+            .setTitle("Moto G52 — opções do desenvolvedor")
+            .setMessage(
+                "1. Abra Configurações > Sobre o telefone.\n" +
+                "2. Localize Número da versão (em algumas versões, fica em Detalhes do dispositivo/Versão do Android).\n" +
+                "3. Toque em Número da versão 7 vezes e confirme o PIN se solicitado.\n" +
+                "4. Volte para Configurações > Sistema > Opções do desenvolvedor.\n" +
+                "5. Para depuração, ative Depuração USB e autorize apenas computadores confiáveis.\n\n" +
+                "Isso não ativa root nem permite gravar setores do microSD pelo slot interno."
+            )
+            .setPositiveButton("Abrir configurações") { _, _ -> openDeveloperSettings() }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun openDeveloperSettings() {
+        try {
+            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        } catch (_: Exception) {
+            AlertDialog.Builder(this)
+                .setTitle("Configurações não abertas")
+                .setMessage("Abra manualmente Configurações > Sistema > Opções do desenvolvedor. Se o menu estiver oculto, toque 7 vezes em Número da versão em Sobre o telefone.")
+                .setPositiveButton("OK", null)
+                .show()
+        }
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Exception) {
+            status.text = "Não foi possível abrir o navegador. Consulte o suporte oficial da Motorola."
+        }
     }
 
     private fun section(parent: LinearLayout, title: String) {
