@@ -208,23 +208,28 @@ class MainActivity : Activity() {
      * Read-only diagnosis of root and MMC block-device metadata.
      * This method intentionally never opens a block device for writing.
      */
+    /**
+     * Read-only diagnosis of root and MMC block-device metadata.
+     * This method intentionally never opens a block device for writing.
+     */
     private fun diagnoseInternalSdAccess() {
         status.text = "Verificando root e identificadores do microSD. Diagnóstico somente de leitura…"
         worker.execute {
             var process: Process? = null
             val result = try {
+                val dollar = '$'
                 val diagnosticCommand = """
                     id
                     echo __SYS_BLOCK_MMC__
                     for p in /sys/block/mmcblk*; do
-                      [ -e "$p" ] || continue
-                      n=${p##*/}
-                      echo "DEVICE=$n"
-                      echo -n "REMOVABLE="; cat "$p/removable" 2>/dev/null
-                      echo -n "SECTORS_512B="; cat "$p/size" 2>/dev/null
-                      echo -n "SYSFS_PATH="; readlink -f "$p/device" 2>/dev/null
+                      [ -e "\${dollar}p" ] || continue
+                      n=\${dollar}{p##*/}
+                      echo "DEVICE=\${dollar}n"
+                      echo -n "REMOVABLE="; cat "\${dollar}p/removable" 2>/dev/null
+                      echo -n "SECTORS_512B="; cat "\${dollar}p/size" 2>/dev/null
+                      echo -n "SYSFS_PATH="; readlink -f "\${dollar}p/device" 2>/dev/null
                       echo -n "PARTITIONS="
-                      ls "$p" 2>/dev/null | grep -E "^${n}p?[0-9]+$" | tr '\\n' ' '
+                      ls "\${dollar}p" 2>/dev/null | grep -E "^\${dollar}{n}p?[0-9]+\${dollar}" | tr '\\n' ' '
                       echo
                     done
                     echo __BLOCK_NODES__
@@ -243,23 +248,22 @@ class MainActivity : Activity() {
                     when {
                         process.exitValue() != 0 ->
                             "O diagnóstico terminou com código " + process.exitValue() +
-                                ". Saída: " + output.ifBlank { "(vazia)" } +
-                                "\\nNenhuma gravação foi tentada."
+                                "\nNenhuma gravação foi tentada.\n" + output.ifBlank { "(saída vazia)" }
                         !output.contains("uid=0") ->
-                            "Root não confirmado (uid=0 ausente).\\n" + output +
-                                "\\nNenhuma gravação foi tentada."
+                            "Root não confirmado (uid=0 ausente).\n" + output +
+                                "\nNenhuma gravação foi tentada."
                         !output.contains("REMOVABLE=1") ->
-                            "Root confirmado, mas o diagnóstico não encontrou um dispositivo MMC marcado como removível. " +
-                                "Não é seguro escolher um alvo automaticamente. Confira os metadados abaixo.\\n\\n" + output
+                            "Root confirmado, mas não foi encontrado dispositivo MMC marcado como removível. " +
+                                "Não é seguro escolher um alvo automaticamente. Confira os metadados abaixo.\n\n" + output
                         else ->
-                            "Root confirmado. Há pelo menos um dispositivo MMC marcado como removível, mas isso ainda não basta para autorizar uma gravação. " +
-                                "Precisamos confirmar o modelo, capacidade, partições e montagens antes de implementar escrita.\\n\\n" + output
+                            "Root confirmado. Há pelo menos um dispositivo MMC marcado como removível, mas isso ainda não autoriza gravação. " +
+                                "Precisamos confirmar modelo, capacidade, partições e montagens antes de implementar escrita.\n\n" + output
                     }
                 }
             } catch (error: Exception) {
                 "Não foi possível executar o diagnóstico root: " +
                     (error.message ?: error.javaClass.simpleName) +
-                    "\\nConfirme se há root instalado e se o gerenciador de root permite o acesso. " +
+                    "\nConfirme se há root instalado e se o gerenciador de root permite o acesso. " +
                     "Opções do desenvolvedor/depuração USB não substituem root. Nenhuma gravação foi tentada."
             } finally {
                 try { process?.destroy() } catch (_: Exception) { }
