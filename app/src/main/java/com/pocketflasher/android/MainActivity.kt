@@ -284,13 +284,12 @@ class MainActivity : Activity() {
                     imageInfo.text = "Arquivo: " + imageName + "\nTamanho: " + formatSize(imageSize) +
                         "\nSHA-256: " + result
                     val expected = expectedHashInput.text.toString()
-                        .trim().replace(" ", "").lowercase(Locale.ROOT)
                     status.text = when {
-                        expected.isEmpty() ->
+                        Sha256Verifier.normalize(expected).isEmpty() ->
                             "SHA-256 calculado. Se tiver o hash oficial, informe-o para comparar."
-                        !expected.matches(Regex("[0-9a-f]{64}")) ->
+                        Sha256Verifier.matches(result, expected) == null ->
                             "Hash calculado, mas o valor informado não tem formato SHA-256 válido (64 caracteres hexadecimais)."
-                        expected == result.lowercase(Locale.ROOT) ->
+                        Sha256Verifier.matches(result, expected) == true ->
                             "VERIFICADO: o SHA-256 corresponde exatamente ao valor informado."
                         else ->
                             "ATENÇÃO: o SHA-256 NÃO corresponde ao valor informado. Não use esta imagem até confirmar a origem."
