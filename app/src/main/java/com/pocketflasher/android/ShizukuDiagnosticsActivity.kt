@@ -112,8 +112,9 @@ class ShizukuDiagnosticsActivity : Activity() {
                 2000 -> "shell/ADB (UID 2000) — não equivale a root"
                 else -> "UID do servidor: ${serverUid}"
             }
+            val permissionText = if (permission) "concedida" else "não concedida"
             details.text = prefix + "\n\nEstado: Binder conectado\nIdentidade: " + identity +
-                "\nPermissão do Pocket Flasher: " + if (permission) "concedida" else "não concedida" +
+                "\nPermissão do Pocket Flasher: " + permissionText +
                 "\n\nLimite: conexão e permissão não provam acesso ao dispositivo microSD nem autorização para gravar setores. " +
                 "Este teste não tenta acesso raw."
         } catch (error: RuntimeException) {
