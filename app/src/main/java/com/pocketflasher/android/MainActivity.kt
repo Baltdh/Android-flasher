@@ -615,11 +615,18 @@ class MainActivity : Activity() {
             return
         }
 
+        // Never request permission for an arbitrary USB device. Require an interface
+        // that advertises the USB Mass Storage class before proceeding.
         val target = devices.firstOrNull { device ->
             (0 until device.interfaceCount).any { index ->
                 device.getInterface(index).interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE
             }
-        } ?: devices.first()
+        }
+        if (target == null) {
+            status.text = "Há USB conectado, mas nenhum dispositivo anuncia interface USB Mass Storage. " +
+                "Não solicitei autorização para um dispositivo aleatório. Verifique o leitor OTG e tente novamente."
+            return
+        }
 
         if (manager.hasPermission(target)) {
             status.text = "O Android já autorizou o acesso USB ao dispositivo " + target.deviceName +
@@ -678,11 +685,20 @@ class MainActivity : Activity() {
             val storageInterfaces = (0 until device.interfaceCount).count { index ->
                 device.getInterface(index).interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE
             }
-            "Nome: " + device.deviceName + "\nFabricante ID: " + device.vendorId +
-                " · Produto ID: " + device.productId + "\nClasse do dispositivo: " + device.deviceClass +
+            val interfaceDetails = (0 until device.interfaceCount).joinToString("\n") { index ->
+                val usbInterface = device.getInterface(index)
+                "  Interface " + index + ": classe=" + usbInterface.interfaceClass +
+                    ", subclasse=" + usbInterface.interfaceSubclass +
+                    ", protocolo=" + usbInterface.interfaceProtocol
+            }
+            "Caminho: " + device.deviceName +
+                "\nFabricante: " + (device.manufacturerName ?: "(não informado)") +
+                "\nProduto: " + (device.productName ?: "(não informado)") +
+                "\nVID:PID: %04X:%04X".format(Locale.US, device.vendorId, device.productId) +
+                "\nClasse do dispositivo: " + device.deviceClass +
                 " · Interfaces: " + device.interfaceCount +
                 "\nInterfaces Mass Storage: " + storageInterfaces +
-                (if (storageInterfaces > 0) " (compatível com armazenamento USB)" else " (armazenamento não identificado)") +
+                "\n" + interfaceDetails +
                 "\nAcesso autorizado pelo Android: " + manager.hasPermission(device)
         }
         AlertDialog.Builder(this)
