@@ -142,6 +142,14 @@ class MainActivity : Activity() {
             setOnClickListener { requestUsbPermission() }
         }, matchWrap())
 
+        section(content, "3 · Diagnóstico Shizuku (somente leitura)")
+        content.addView(makeButton("Verificar conexão Shizuku / ADB"), matchWrap().apply {
+            // Mantém o diagnóstico separado e não executa comandos de shell.
+        })
+        (content.getChildAt(content.childCount - 1) as Button).setOnClickListener {
+            startActivity(Intent(this, ShizukuDiagnosticsActivity::class.java))
+        }
+
         section(content, "4 · Desenvolvedor / root (Moto G52)")
         content.addView(makeButton("Como habilitar opções do desenvolvedor").apply {
             setOnClickListener { showDeveloperOptionsGuide() }
