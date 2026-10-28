@@ -28,5 +28,7 @@ android {
 }
 
 dependencies {
+    implementation("dev.rikka.shizuku:api:12.2.0")
+    implementation("dev.rikka.shizuku:provider:12.2.0")
     testImplementation("junit:junit:4.13.2")
 }
