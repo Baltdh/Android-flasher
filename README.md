@@ -24,6 +24,14 @@ Aplicativo Android em Kotlin para preparar e verificar imagens de sistemas, com 
 
 Não habilitar escrita destrutiva antes de testar com cartões descartáveis, validar capacidade e verificar os dados gravados. Nunca apresentar a cópia de um arquivo ISO/IMG para uma pasta como gravação inicializável.
 
+## Pesquisa e integração Shizuku
+
+- [Plano de integração oficial do Shizuku](docs/SHIZUKU_INTEGRATION_PLAN.md)
+- [Notas de campo do Moto G52 e Termux/rish](docs/POCKET_FLASHER_FIELD_NOTES_2026-10-27.md)
+- [Viabilidade sem root e sem computador](docs/NO_ROOT_NO_PC_FEASIBILITY.md)
+
+O Shizuku deve ser tratado como um canal opcional para operações de sistema autorizadas, não como garantia de acesso raw ao microSD. A integração oficial pela API é preferível a depender do script `rish` na interface principal. A gravação raw permanece desativada até que exista uma interface suportada e verificável.
+
 ## Compilação
 
 O workflow GitHub Actions em `.github/workflows/android-build.yml` é executado quando há alterações na branch `main` e também conforme os gatilhos definidos no próprio arquivo. Ele compila o APK de depuração e publica `pocket-flasher-debug-apk` como artefato da execução.
